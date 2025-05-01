@@ -137,7 +137,8 @@ const urls = [
       await page.setViewport({ width: 1280, height: 800 });
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
 
-      await page.screenshot({ path: `screenshots/${hostname}.png`, fullPage: true });
+      await page.screenshot({ path: `screenshots/${hostname}-${today}.png`, fullPage: true });
+
 
       // Grab headlines
       const headlines = await page.evaluate(() => {
