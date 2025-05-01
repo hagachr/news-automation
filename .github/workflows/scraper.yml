@@ -1,0 +1,36 @@
+name: Daily News Scraper
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # 04:00 Norway time (UTC+2)
+  workflow_dispatch:     # allows manual trigger in GitHub Actions
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run scraper
+        run: node scraper.js
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v3
+        with:
+          name: screenshots
+          path: screenshots/
+
+      - name: Upload headlines
+        uses: actions/upload-artifact@v3
+        with:
+          name: headlines
+          path: headlines.json
