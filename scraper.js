@@ -37,10 +37,10 @@ const urls = [
   'https://www.reuters.com/science/',
   'https://www.reuters.com/lifestyle/',
   'https://www.wsj.com',
-  'https://www.wsj.com/tech'
+  'https://www.wsj.com/tech',
   'https://www.theverge.com/',
   'https://www.404media.co/',
-  'https://www.wired.com/'
+  'https://www.wired.com/',
   'https://www.theinformation.com/',
   'https://arstechnica.com/',
   'https://techcrunch.com/latest/',
@@ -80,7 +80,7 @@ const urls = [
   'https://www.thedailybeast.com/category/politics/opinion/',
   'https://www.thedailybeast.com/category/innovation/',
   'https://www.thedailybeast.com/category/us-news/',
-  'https://www.statnews.com/'
+  'https://www.statnews.com/',
   'https://www.statnews.com/latest/',
   'https://www.lawfaremedia.org/',
   'https://www.adweek.com/',
