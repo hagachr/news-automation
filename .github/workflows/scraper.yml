@@ -23,10 +23,11 @@ jobs:
           rm -rf node_modules package-lock.json
           npm install
 
-      - name: Run scraper
-        run: node scraper.js
-        env:
-        DROPBOX_TOKEN: ${{ secrets.DROPBOX_TOKEN }}
+- name: Run scraper
+  env:
+    DROPBOX_TOKEN: ${{ secrets.DROPBOX_TOKEN }}
+  run: node scraper.js
+
 
       - name: Upload screenshots
         uses: actions/upload-artifact@master
