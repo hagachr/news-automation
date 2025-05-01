@@ -121,32 +121,48 @@ const urls = [
   if (!fs.existsSync('screenshots')) fs.mkdirSync('screenshots');
 
   const results = [];
+  const articleURLs = new Set(); // Use a Set to avoid duplicates
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
   for (const url of urls) {
     try {
       console.log(`Processing ${url}`);
-
       const hostname = new URL(url).hostname.replace(/\./g, '_');
       const page = await browser.newPage();
 
-      // Mobile user agent for stubborn sites like WaPo
       await page.setUserAgent(
         'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Safari/604.1'
       );
 
-      // Fallback viewport for 0-width issues (e.g., The Hill)
       await page.setViewport({ width: 1280, height: 800 });
-
-      // Load the page (longer timeout for slow sites like AP)
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
 
-      // Always screenshot first
       await page.screenshot({ path: `screenshots/${hostname}.png`, fullPage: true });
 
-      // Then try to extract headlines
+      // Grab headlines
       const headlines = await page.evaluate(() => {
         const elements = document.querySelectorAll('h1, h2, h3');
         return Array.from(elements).map(el => el.innerText.trim()).filter(text => text.length > 5);
+      });
+
+      // Grab likely article links
+      const links = await page.evaluate(() => {
+        const anchors = document.querySelectorAll('a[href]');
+        return Array.from(anchors).map(a => a.href);
+      });
+
+      // Filter links that look like real articles
+      links.forEach(link => {
+        if (
+          link.includes('/202') || // likely contains a date: /2024/, /2025/, etc.
+          link.includes('/article') ||
+          link.includes('/news') ||
+          link.includes('/story') ||
+          link.includes('/politics') ||
+          link.includes('/opinion')
+        ) {
+          articleURLs.add(link.split('#')[0]); // Remove fragment anchors
+        }
       });
 
       results.push({ url, success: true, headlines });
@@ -156,15 +172,27 @@ const urls = [
     }
   }
 
+  // Save headlines
   fs.writeFileSync('headlines.json', JSON.stringify(results, null, 2));
   console.log('Scraping complete!');
 
+  // Save article URLs as text file
+  const articleURLArray = Array.from(articleURLs).sort();
+  const articleFile = `article-urls-${today}.txt`;
+  fs.writeFileSync(articleFile, articleURLArray.join('\n'));
+  console.log(`Saved ${articleURLArray.length} article URLs to ${articleFile}`);
+
   // Upload to Dropbox
   const uploadToDropbox = async () => {
-    const jsonData = fs.readFileSync('headlines.json');
     await dropbox.filesUpload({
-      path: `/NewsScraper/headlines-${new Date().toISOString().split('T')[0]}.json`,
-      contents: jsonData,
+      path: `/NewsScraper/headlines-${today}.json`,
+      contents: fs.readFileSync('headlines.json'),
+      mode: 'overwrite'
+    });
+
+    await dropbox.filesUpload({
+      path: `/NewsScraper/${articleFile}`,
+      contents: fs.readFileSync(articleFile),
       mode: 'overwrite'
     });
 
@@ -181,7 +209,7 @@ const urls = [
   };
 
   await uploadToDropbox();
-  console.log('Uploaded to Dropbox ✅');
+  console.log('Uploaded everything to Dropbox ✅');
 
   await browser.close();
 })();
