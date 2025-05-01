@@ -2,12 +2,12 @@ const puppeteer = require('puppeteer');
 const fs = require('fs');
 const path = require('path');
 const { Dropbox } = require('dropbox');
-const fetch = require('node-fetch'); // required by Dropbox SDK in Node
+const fetch = require('node-fetch');
+
 const dropbox = new Dropbox({
   accessToken: process.env.DROPBOX_TOKEN,
   fetch
 });
-
 
 const urls = [
   'https://deadline.com',
@@ -115,9 +115,8 @@ const urls = [
 
 (async () => {
   const browser = await puppeteer.launch({
-  args: ['--no-sandbox', '--disable-setuid-sandbox']
-});
-  const page = await browser.newPage();
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
+  });
 
   if (!fs.existsSync('screenshots')) fs.mkdirSync('screenshots');
 
@@ -126,49 +125,63 @@ const urls = [
   for (const url of urls) {
     try {
       console.log(`Processing ${url}`);
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
+      const hostname = new URL(url).hostname.replace(/\./g, '_');
+      const page = await browser.newPage();
+
+      // Mobile user agent for stubborn sites like WaPo
+      await page.setUserAgent(
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Safari/604.1'
+      );
+
+      // Fallback viewport for 0-width issues (e.g., The Hill)
+      await page.setViewport({ width: 1280, height: 800 });
+
+      // Load the page (longer timeout for slow sites like AP)
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
+
+      // Always screenshot first
+      await page.screenshot({ path: `screenshots/${hostname}.png`, fullPage: true });
+
+      // Then try to extract headlines
       const headlines = await page.evaluate(() => {
         const elements = document.querySelectorAll('h1, h2, h3');
         return Array.from(elements).map(el => el.innerText.trim()).filter(text => text.length > 5);
       });
 
-      const hostname = new URL(url).hostname.replace(/\./g, '_');
-      await page.screenshot({ path: `screenshots/${hostname}.png`, fullPage: true });
-
-      results.push({ url, headlines });
+      results.push({ url, success: true, headlines });
     } catch (err) {
       console.error(`Error with ${url}:`, err.message);
+      results.push({ url, success: false, error: err.message });
     }
   }
 
   fs.writeFileSync('headlines.json', JSON.stringify(results, null, 2));
   console.log('Scraping complete!');
 
-  await browser.close();
-const uploadToDropbox = async () => {
-  // Upload JSON
-  const jsonData = fs.readFileSync('headlines.json');
-  await dropbox.filesUpload({
-    path: `/NewsScraper/headlines-${new Date().toISOString().split('T')[0]}.json`,
-    contents: jsonData,
-    mode: 'overwrite'
-  });
-
-  // Upload screenshots
-  const files = fs.readdirSync('screenshots');
-  for (const file of files) {
-    const filePath = `screenshots/${file}`;
-    const content = fs.readFileSync(filePath);
+  // Upload to Dropbox
+  const uploadToDropbox = async () => {
+    const jsonData = fs.readFileSync('headlines.json');
     await dropbox.filesUpload({
-      path: `/NewsScraper/${file}`,
-      contents: content,
+      path: `/NewsScraper/headlines-${new Date().toISOString().split('T')[0]}.json`,
+      contents: jsonData,
       mode: 'overwrite'
     });
-  }
-};
 
-await uploadToDropbox();
-console.log('Uploaded to Dropbox ✅');
+    const files = fs.readdirSync('screenshots');
+    for (const file of files) {
+      const filePath = `screenshots/${file}`;
+      const content = fs.readFileSync(filePath);
+      await dropbox.filesUpload({
+        path: `/NewsScraper/${file}`,
+        contents: content,
+        mode: 'overwrite'
+      });
+    }
+  };
 
+  await uploadToDropbox();
+  console.log('Uploaded to Dropbox ✅');
+
+  await browser.close();
 })();
