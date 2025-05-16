@@ -2,7 +2,8 @@ name: Daily News Scraper
 
 on:
   schedule:
-    - cron: '0 2 * * *'  # 04:00 Norway time
+    - cron: '0 21 * * *'  # 23:00 Norway time
+    - cron: '0 5 * * *'   # 07:00 Norway time
   workflow_dispatch:
 
 jobs:
