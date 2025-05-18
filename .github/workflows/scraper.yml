@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v3
 
       - name: Set up Node.js
@@ -19,24 +19,21 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install dependencies fresh
-        run: |
-          rm -rf node_modules package-lock.json
-          npm install
+      - name: Install dependencies
+        run: npm install
 
       - name: Run scraper
-        env:
-          DROPBOX_TOKEN: ${{ secrets.DROPBOX_TOKEN }}
         run: node scraper.js
 
-      - name: Upload screenshots
-        uses: actions/upload-artifact@master
-        with:
-          name: screenshots
-          path: screenshots/
-
-      - name: Upload headlines
-        uses: actions/upload-artifact@master
-        with:
-          name: headlines
-          path: headlines.json
+      - name: Commit and push output files
+        run: |
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+          git pull origin main
+          mkdir -p daily
+          mv article-urls-*.txt daily/ || true
+          mv headlines.json daily/ || true
+          mv screenshots/*.png daily/ || true
+          git add daily/
+          git commit -m "Add daily snapshot for $(date +'%Y-%m-%d')" || echo "Nothing to commit"
+          git push https://x-access-token:${{ secrets.GH_COMMIT_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main
