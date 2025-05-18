@@ -1,13 +1,6 @@
 const puppeteer = require('puppeteer');
 const fs = require('fs');
 const path = require('path');
-const { Dropbox } = require('dropbox');
-const fetch = require('node-fetch');
-
-const dropbox = new Dropbox({
-  accessToken: process.env.DROPBOX_TOKEN,
-  fetch
-});
 
 const urls = [
   'https://deadline.com',
@@ -121,8 +114,8 @@ const urls = [
   if (!fs.existsSync('screenshots')) fs.mkdirSync('screenshots');
 
   const results = [];
-  const articleURLs = new Set(); // Use a Set to avoid duplicates
-  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  const articleURLs = new Set();
+  const today = new Date().toISOString().split('T')[0];
 
   for (const url of urls) {
     try {
@@ -133,36 +126,30 @@ const urls = [
       await page.setUserAgent(
         'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Safari/604.1'
       );
-
       await page.setViewport({ width: 1280, height: 800 });
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
 
       await page.screenshot({ path: `screenshots/${hostname}-${today}.png`, fullPage: true });
 
-
-      // Grab headlines
       const headlines = await page.evaluate(() => {
         const elements = document.querySelectorAll('h1, h2, h3');
         return Array.from(elements).map(el => el.innerText.trim()).filter(text => text.length > 5);
       });
 
-      // Grab likely article links
       const links = await page.evaluate(() => {
         const anchors = document.querySelectorAll('a[href]');
         return Array.from(anchors).map(a => a.href);
       });
 
-      // Filter links that look like real articles
       links.forEach(link => {
         if (
-          link.includes('/202') || // likely contains a date: /2024/, /2025/, etc.
+          link.includes('/202') ||
           link.includes('/article') ||
           link.includes('/news') ||
           link.includes('/story') ||
-          link.includes('/politics') ||
           link.includes('/opinion')
         ) {
-          articleURLs.add(link.split('#')[0]); // Remove fragment anchors
+          articleURLs.add(link.split('#')[0]);
         }
       });
 
@@ -173,44 +160,13 @@ const urls = [
     }
   }
 
-  // Save headlines
+  // Save results
   fs.writeFileSync('headlines.json', JSON.stringify(results, null, 2));
-  console.log('Scraping complete!');
 
-  // Save article URLs as text file
-  const articleURLArray = Array.from(articleURLs).sort();
   const articleFile = `article-urls-${today}.txt`;
-  fs.writeFileSync(articleFile, articleURLArray.join('\n'));
-  console.log(`Saved ${articleURLArray.length} article URLs to ${articleFile}`);
+  fs.writeFileSync(articleFile, Array.from(articleURLs).sort().join('\n'));
 
-  // Upload to Dropbox
-  const uploadToDropbox = async () => {
-    await dropbox.filesUpload({
-      path: `/NewsScraper/headlines-${today}.json`,
-      contents: fs.readFileSync('headlines.json'),
-      mode: 'overwrite'
-    });
-
-    await dropbox.filesUpload({
-      path: `/NewsScraper/${articleFile}`,
-      contents: fs.readFileSync(articleFile),
-      mode: 'overwrite'
-    });
-
-    const files = fs.readdirSync('screenshots');
-    for (const file of files) {
-      const filePath = `screenshots/${file}`;
-      const content = fs.readFileSync(filePath);
-      await dropbox.filesUpload({
-        path: `/NewsScraper/${file}`,
-        contents: content,
-        mode: 'overwrite'
-      });
-    }
-  };
-
-  await uploadToDropbox();
-  console.log('Uploaded everything to Dropbox ✅');
+  console.log('✅ Files generated: headlines.json, article URLs, and screenshots');
 
   await browser.close();
 })();
