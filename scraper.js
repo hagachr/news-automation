@@ -129,13 +129,24 @@ const urls = [
       await page.setViewport({ width: 1280, height: 800 });
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
 
-      await page.screenshot({ path: `screenshots/${hostname}-${today}.png`, fullPage: true });
+      // ✅ SAFE screenshot attempt with extended timeout
+      try {
+        await page.screenshot({
+          path: `screenshots/${hostname}-${today}.png`,
+          fullPage: true,
+          timeout: 120000
+        });
+      } catch (screenshotError) {
+        console.error(`Screenshot failed for ${url}:`, screenshotError.message);
+      }
 
+      // Extract headlines
       const headlines = await page.evaluate(() => {
         const elements = document.querySelectorAll('h1, h2, h3');
         return Array.from(elements).map(el => el.innerText.trim()).filter(text => text.length > 5);
       });
 
+      // Extract links
       const links = await page.evaluate(() => {
         const anchors = document.querySelectorAll('a[href]');
         return Array.from(anchors).map(a => a.href);
@@ -145,8 +156,8 @@ const urls = [
         if (
           link.includes('/202') ||
           link.includes('/article') ||
-          link.includes('/news') ||
           link.includes('/story') ||
+          link.includes('/news') ||
           link.includes('/opinion')
         ) {
           articleURLs.add(link.split('#')[0]);
@@ -160,6 +171,7 @@ const urls = [
     }
   }
 
+  // Save results
   fs.writeFileSync(`headlines-${today}.json`, JSON.stringify(results, null, 2));
   fs.writeFileSync(`article-urls-${today}.txt`, Array.from(articleURLs).sort().join('\n'));
 
