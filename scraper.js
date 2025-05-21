@@ -1,6 +1,7 @@
 const puppeteer = require('puppeteer');
 const fs = require('fs');
 
+
 const urls = [
   'https://deadline.com',
   'https://deadline.com/page/2/',
@@ -108,7 +109,8 @@ const urls = [
 (async () => {
   const browser = await puppeteer.launch({
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    protocolTimeout: 120000
+    timeout: 120000,           // Total launch timeout
+    protocolTimeout: 120000    // Timeout for browser commands
   });
 
   if (!fs.existsSync('screenshots')) fs.mkdirSync('screenshots');
@@ -129,40 +131,45 @@ const urls = [
       await page.setViewport({ width: 1280, height: 800 });
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
 
-      // ✅ SAFE screenshot attempt with extended timeout
+      // Try to screenshot
       try {
-        await page.screenshot({
-          path: `screenshots/${hostname}-${today}.png`,
-          fullPage: true,
-          timeout: 120000
-        });
-      } catch (screenshotError) {
-        console.error(`Screenshot failed for ${url}:`, screenshotError.message);
+        await page.screenshot({ path: `screenshots/${hostname}-${today}.png`, fullPage: true });
+      } catch (screenshotErr) {
+        console.error(`Screenshot failed for ${url}: ${screenshotErr.message}`);
       }
 
-      // Extract headlines
-      const headlines = await page.evaluate(() => {
-        const elements = document.querySelectorAll('h1, h2, h3');
-        return Array.from(elements).map(el => el.innerText.trim()).filter(text => text.length > 5);
-      });
+      // Try to extract headlines
+      let headlines = [];
+      try {
+        headlines = await page.evaluate(() => {
+          const elements = document.querySelectorAll('h1, h2, h3');
+          return Array.from(elements).map(el => el.innerText.trim()).filter(text => text.length > 5);
+        });
+      } catch (headlineErr) {
+        console.error(`Headline extraction failed for ${url}: ${headlineErr.message}`);
+      }
 
-      // Extract links
-      const links = await page.evaluate(() => {
-        const anchors = document.querySelectorAll('a[href]');
-        return Array.from(anchors).map(a => a.href);
-      });
+      // Try to extract article links
+      try {
+        const links = await page.evaluate(() => {
+          const anchors = document.querySelectorAll('a[href]');
+          return Array.from(anchors).map(a => a.href);
+        });
 
-      links.forEach(link => {
-        if (
-          link.includes('/202') ||
-          link.includes('/article') ||
-          link.includes('/story') ||
-          link.includes('/news') ||
-          link.includes('/opinion')
-        ) {
-          articleURLs.add(link.split('#')[0]);
-        }
-      });
+        links.forEach(link => {
+          if (
+            link.includes('/202') ||
+            link.includes('/article') ||
+            link.includes('/story') ||
+            link.includes('/news') ||
+            link.includes('/opinion')
+          ) {
+            articleURLs.add(link.split('#')[0]);
+          }
+        });
+      } catch (linkErr) {
+        console.error(`Link extraction failed for ${url}: ${linkErr.message}`);
+      }
 
       results.push({ url, success: true, headlines });
     } catch (err) {
@@ -171,9 +178,9 @@ const urls = [
     }
   }
 
-  // Save results
   fs.writeFileSync(`headlines-${today}.json`, JSON.stringify(results, null, 2));
   fs.writeFileSync(`article-urls-${today}.txt`, Array.from(articleURLs).sort().join('\n'));
 
+  console.log('✅ Done generating .txt and .json files');
   await browser.close();
 })();
