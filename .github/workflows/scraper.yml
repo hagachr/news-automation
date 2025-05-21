@@ -28,13 +28,13 @@ jobs:
         run: node scraper.js
 
       - name: Upload article URLs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v2
         with:
           name: article-urls
           path: article-urls-*.txt
 
       - name: Upload headlines
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v2
         with:
           name: headlines
           path: headlines-*.json
