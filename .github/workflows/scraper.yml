@@ -12,10 +12,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@master
 
       - name: Set up Node.js
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@master
         with:
           node-version: '20'
 
@@ -28,13 +28,13 @@ jobs:
         run: node scraper.js
 
       - name: Upload article URLs
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@master
         with:
           name: article-urls
           path: article-urls-*.txt
 
       - name: Upload headlines
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@master
         with:
           name: headlines
           path: headlines-*.json
