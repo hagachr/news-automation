@@ -1,7 +1,6 @@
 const puppeteer = require('puppeteer');
 const fs = require('fs');
 
-
 const urls = [
   'https://deadline.com',
   'https://deadline.com/page/2/',
@@ -106,81 +105,89 @@ const urls = [
   'https://www.teenvogue.com/'
 ];
 
-(async () => {
-  const browser = await puppeteer.launch({
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    timeout: 120000,           // Total launch timeout
-    protocolTimeout: 120000    // Timeout for browser commands
-  });
+const results = [];
+const articleURLs = new Set();
+const today = new Date().toISOString().split('T')[0];
 
-  if (!fs.existsSync('screenshots')) fs.mkdirSync('screenshots');
+if (!fs.existsSync('screenshots')) fs.mkdirSync('screenshots');
 
-  const results = [];
-  const articleURLs = new Set();
-  const today = new Date().toISOString().split('T')[0];
+const runScraperForURL = async (url) => {
+  let browser;
+  try {
+    console.log(`Processing ${url}`);
+    const hostname = new URL(url).hostname.replace(/\./g, '_');
 
-  for (const url of urls) {
+    browser = await puppeteer.launch({
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      timeout: 120000,
+      protocolTimeout: 120000
+    });
+
+    const page = await browser.newPage();
+
+    await page.setUserAgent(
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Safari/604.1'
+    );
+    await page.setViewport({ width: 1280, height: 800 });
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
+
+    // Try screenshot
     try {
-      console.log(`Processing ${url}`);
-      const hostname = new URL(url).hostname.replace(/\./g, '_');
-      const page = await browser.newPage();
-
-      await page.setUserAgent(
-        'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Safari/604.1'
-      );
-      await page.setViewport({ width: 1280, height: 800 });
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
-
-      // Try to screenshot
-      try {
-        await page.screenshot({ path: `screenshots/${hostname}-${today}.png`, fullPage: true });
-      } catch (screenshotErr) {
-        console.error(`Screenshot failed for ${url}: ${screenshotErr.message}`);
-      }
-
-      // Try to extract headlines
-      let headlines = [];
-      try {
-        headlines = await page.evaluate(() => {
-          const elements = document.querySelectorAll('h1, h2, h3');
-          return Array.from(elements).map(el => el.innerText.trim()).filter(text => text.length > 5);
-        });
-      } catch (headlineErr) {
-        console.error(`Headline extraction failed for ${url}: ${headlineErr.message}`);
-      }
-
-      // Try to extract article links
-      try {
-        const links = await page.evaluate(() => {
-          const anchors = document.querySelectorAll('a[href]');
-          return Array.from(anchors).map(a => a.href);
-        });
-
-        links.forEach(link => {
-          if (
-            link.includes('/202') ||
-            link.includes('/article') ||
-            link.includes('/story') ||
-            link.includes('/news') ||
-            link.includes('/opinion')
-          ) {
-            articleURLs.add(link.split('#')[0]);
-          }
-        });
-      } catch (linkErr) {
-        console.error(`Link extraction failed for ${url}: ${linkErr.message}`);
-      }
-
-      results.push({ url, success: true, headlines });
-    } catch (err) {
-      console.error(`Error with ${url}:`, err.message);
-      results.push({ url, success: false, error: err.message });
+      await page.screenshot({ path: `screenshots/${hostname}-${today}.png`, fullPage: true });
+    } catch (screenshotErr) {
+      console.error(`Screenshot failed for ${url}: ${screenshotErr.message}`);
     }
+
+    // Try headline extraction
+    let headlines = [];
+    try {
+      headlines = await page.evaluate(() => {
+        const elements = document.querySelectorAll('h1, h2, h3');
+        return Array.from(elements).map(el => el.innerText.trim()).filter(text => text.length > 5);
+      });
+    } catch (headlineErr) {
+      console.error(`Headline extraction failed for ${url}: ${headlineErr.message}`);
+    }
+
+    // Try link extraction
+    try {
+      const links = await page.evaluate(() => {
+        const anchors = document.querySelectorAll('a[href]');
+        return Array.from(anchors).map(a => a.href);
+      });
+
+      links.forEach(link => {
+        if (
+          link.includes('/202') ||
+          link.includes('/article') ||
+          link.includes('/story') ||
+          link.includes('/news') ||
+          link.includes('/opinion')
+        ) {
+          articleURLs.add(link.split('#')[0]);
+        }
+      });
+    } catch (linkErr) {
+      console.error(`Link extraction failed for ${url}: ${linkErr.message}`);
+    }
+
+    results.push({ url, success: true, headlines });
+
+  } catch (err) {
+    console.error(`Fatal error with ${url}: ${err.message}`);
+    results.push({ url, success: false, error: err.message });
+  } finally {
+    if (browser) await browser.close();
+  }
+};
+
+(async () => {
+  for (const url of urls) {
+    await runScraperForURL(url);
   }
 
   fs.writeFileSync(`headlines-${today}.json`, JSON.stringify(results, null, 2));
   fs.writeFileSync(`article-urls-${today}.txt`, Array.from(articleURLs).sort().join('\n'));
 
   console.log('✅ Done generating .txt and .json files');
-  await browser.close();
 })();
