@@ -1,6 +1,5 @@
 const puppeteer = require('puppeteer');
 const fs = require('fs');
-const path = require('path');
 
 const urls = [
   'https://deadline.com',
@@ -108,7 +107,8 @@ const urls = [
 
 (async () => {
   const browser = await puppeteer.launch({
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    protocolTimeout: 120000
   });
 
   if (!fs.existsSync('screenshots')) fs.mkdirSync('screenshots');
@@ -160,13 +160,8 @@ const urls = [
     }
   }
 
-  // Save results
-  fs.writeFileSync('headlines.json', JSON.stringify(results, null, 2));
-
-  const articleFile = `article-urls-${today}.txt`;
-  fs.writeFileSync(articleFile, Array.from(articleURLs).sort().join('\n'));
-
-  console.log('✅ Files generated: headlines.json, article URLs, and screenshots');
+  fs.writeFileSync(`headlines-${today}.json`, JSON.stringify(results, null, 2));
+  fs.writeFileSync(`article-urls-${today}.txt`, Array.from(articleURLs).sort().join('\n'));
 
   await browser.close();
 })();
