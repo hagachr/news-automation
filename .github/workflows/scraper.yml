@@ -27,15 +27,14 @@ jobs:
       - name: Run scraper
         run: node scraper.js
 
-      - name: Commit and push output files
-        run: |
-          git config user.name "GitHub Action"
-          git config user.email "action@github.com"
-          git pull origin main
-          mkdir -p daily
-          mv article-urls-*.txt daily/ || true
-          mv headlines.json daily/ || true
-          mv screenshots/*.png daily/ || true
-          git add daily/
-          git commit -m "Add daily snapshot for $(date +'%Y-%m-%d')" || echo "Nothing to commit"
-          git push https://x-access-token:${{ secrets.GH_COMMIT_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main
+      - name: Upload article URLs
+        uses: actions/upload-artifact@v3
+        with:
+          name: article-urls
+          path: article-urls-*.txt
+
+      - name: Upload headlines
+        uses: actions/upload-artifact@v3
+        with:
+          name: headlines
+          path: headlines-*.json
